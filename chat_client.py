@@ -2,6 +2,8 @@
 import socket, select, string, sys
 
 
+# login 필요.
+
 def prompt():
     sys.stdout.write('<You> ')
     sys.stdout.flush()

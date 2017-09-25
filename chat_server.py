@@ -1,5 +1,7 @@
 # Tcp Chat server
-
+# To-do 각각의 사람들에 대해 메세지 큐를 만든다.
+# 방에 참여한 사람이 로그아웃 한 경우, 큐에 메세지를 넣고 로그인 했을 때
+# 다 보여준다.
 import socket, select
 
 # Function to broadcast chat messages to all connected clients

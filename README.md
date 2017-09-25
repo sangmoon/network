@@ -1,5 +1,5 @@
-##SNU Network project
+## SNU Network project
 
-###simple chat program 
+### simple chat program 
 - python3
 - socket
