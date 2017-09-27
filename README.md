@@ -23,3 +23,6 @@
 - ``socket.send()`` 를 할 때에는 ``encode('utf-8')``을 해주고
 - ``socket.recv()`` 시에는 ``decode('utf-8')``을 해주어야 한다
 - ``json.dumps()`` 는 따로 ``decode`` 해주지 않아도 된다.
+
+##### 가정한 점
+- 중복로그인은 없다.

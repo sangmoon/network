@@ -4,7 +4,7 @@ import select
 import sys
 import getpass
 import json
-# login 필요
+import re
 
 
 def message_form(types, content):
@@ -55,29 +55,46 @@ if __name__ == "__main__":
         for sock in read_sockets:
             # incoming message from remote server
             if sock == s:
-                data = json.loads(sock.recv(4096))
-                if not data:
-                    print ('\nDisconnected from chat server')
-                    sys.exit()
-                elif data['type'] == 'login':
-                    if(data['content'] == "True"):
-                        print("login succeed")
-                        print ('Connected to remote host. Start sending messages')
+                try:
+                    data = json.loads(sock.recv(4096).decode('utf-8'))
+                    if not data:
+                        print ('\nDisconnected from chat server')
+                        sys.exit()
+                    elif data['type'] == 'login':
+                        if(data['content'] == "True"):
+                            print("login succeed")
+                            print (
+                                'Connected to remote host. Start chat app'
+                            )
+                            prompt()
+                        else:
+                            print("login failed.")
+                            s.send(message_form("login", login()))
 
+                    elif data['type'] == 'invitation':
+                        answer = input(data['content']['message'])
+                        s.send(message_form("invitation", {"state": "response", "answer": answer}))
                         prompt()
                     else:
-                        print("login failed.")
-                        s.send(message_form("login", login()))
-
-                elif data['type'] == 'invitation':
-                    pass
-                else:
-                    # print data
-                    sys.stdout.write(data["content"])
-                    prompt()
+                        # print data
+                        sys.stdout.write(data["content"])
+                        prompt()
+                except Exception as e:
+                    print(e)
+                    break
 
             # user entered a message
             else:
                 msg = sys.stdin.readline()
-                s.send(message_form("message", msg))
-                prompt()
+                m = re.search(r'^!invite[\s]*([a-zA-Z])', msg,)
+                if (m):
+                    # 초대 보내기
+                    target = m.group(1)
+                    s.send(message_form(
+                        "invitation", {"state": "request", "target": target}))
+                    prompt()
+                else:
+                    # 그냥 메세지 보내기
+                    s.send(message_form("message", msg))
+                    prompt()
+    s.close()

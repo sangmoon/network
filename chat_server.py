@@ -5,7 +5,6 @@
 import socket
 import select
 import json
-import sys
 # Function to broadcast chat messages to all connected clients
 
 
@@ -13,7 +12,10 @@ def broadcast_data(sock, message):
     # Do not send the message to master socket and the client who has
     # send us the message
     for _socket in CONNECTION_LIST:
-        if _socket != server_socket and _socket != sock:
+        if (_socket != server_socket and
+                _socket != sock and
+                LOGIN_MAP.get(sock, None) in CHAT_MEMBER_LIST and
+                LOGIN_MAP.get(_socket, None) in CHAT_MEMBER_LIST):
             try:
                 # _socket.send(message.encode('utf-8'))
                 _socket.send(message_form("message", message))
@@ -71,7 +73,7 @@ if __name__ == "__main__":
                 CONNECTION_LIST.append(sockfd)
                 print("Client (%s, %s) connected" % addr)
 
-                broadcast_data(sockfd, "[%s:%s] entered room\n" % addr)
+                broadcast_data(sockfd, "[%s] entered room\n" % str(LOGIN_MAP.get(sockfd, addr)))
 
             # Some incoming message from a client
             else:
@@ -80,32 +82,50 @@ if __name__ == "__main__":
                     # In Windows, sometimes when a TCP program closes abruptly,
                     # a "Connection reset by peer" exception will be thrown
                     data = json.loads(sock.recv(RECV_BUFFER))
-
+                    print(LOGIN_MAP)
+                    print("1")
                     if data:
+                        print("2")
                         if data['type'] == "login":
-                            print()
+                            print("3")
                             # login process
-                            sys.stdout.write("1")
                             if login(
                                 data['content']['id'],
                                 data['content']['password']
                             ):
+                                LOGIN_MAP[sock] = data['content']['id']
                                 sock.send(message_form("login", "True"))
                             else:
                                 sock.send(message_form("login", "False"))
                         elif data['type'] == "invitation":
-                            pass
+                            if(data['content']['state'] == "request"):
+                                # request 상황 시
+                                print(4)
+                                for _socket, _id in list(LOGIN_MAP.items()):
+                                    if _id == data['content']['target']:
+                                        _socket.send(message_form("invitation", {"state":"request","message":"You are invited for chat room, Y or N?"}))
+                                        break
+                            else:
+                                # response 상황 시
+                                print(5)
+                                if data['content']['answer'] in ['Y', 'y']:
+                                    CHAT_MEMBER_LIST.append(LOGIN_MAP[sock])
+                                else:
+                                    print("no this is error")
                         else:
                             # normal process
                             broadcast_data(sock, "\r" + '<' + str(
-                                sock.getpeername()) + '> ' + data["content"])
+                                LOGIN_MAP[sock]) + '> ' + data["content"])
 
                 except Exception as e:
                     print(e)
-                    broadcast_data(sock, "Client (%s, %s) is offline" % addr)
+                    broadcast_data(sock, "Client (%s, %s) is offline\n" % addr)
                     print ("Client (%s, %s) is offline" % addr)
                     sock.close()
                     CONNECTION_LIST.remove(sock)
+                    for key, value in list(LOGIN_MAP.items()):
+                        if(sock == key):
+                            del LOGIN_MAP[key]
                     continue
 
     server_socket.close()
