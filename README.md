@@ -1,7 +1,7 @@
 ## SNU Network project
 
 ### simple chat program 
-- python3
+- python3(3.6.2에서 테스트.)
 - socket
 
 ##### chat_client.py 와 chat_server.py 로 구성
@@ -26,3 +26,9 @@
 
 ##### 가정한 점
 - 중복로그인은 없다.
+- 로그인 시 초대 메세지는 가장 최근 1개만 보여진다.
+- Select library는 window에서 작동하지 않을 수 있다.
+
+##### 실행 방법
+- ``python3 chat_server.py``
+- ``python3 chat_client.py HOST_URL HOST_PORT``

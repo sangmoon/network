@@ -14,8 +14,8 @@ def broadcast_data(sock, message):
     for _socket in CONNECTION_LIST:
         if (_socket != server_socket and
                 _socket != sock and
-                LOGIN_MAP.get(sock, None) in CHAT_MEMBER_LIST and
-                LOGIN_MAP.get(_socket, None) in CHAT_MEMBER_LIST):
+                LOGIN_MAP.get(sock, None) in CHAT_MEMBER_LIST.keys() and
+                LOGIN_MAP.get(_socket, None) in CHAT_MEMBER_LIST.keys()):
             try:
                 # _socket.send(message.encode('utf-8'))
                 _socket.send(message_form("message", message))
@@ -24,6 +24,12 @@ def broadcast_data(sock, message):
                 # ctrl+c for example
                 _socket.close()
                 CONNECTION_LIST.remove(_socket)
+    for member, queue in list(CHAT_MEMBER_LIST.items()):
+        if(member not in LOGIN_MAP.values()):
+            queue.append(message_form("message", message))
+
+
+# def save_to_mq(sock, message_form):
 
 
 def message_form(types, content):
@@ -40,10 +46,14 @@ if __name__ == "__main__":
 
     # List to keep track of socket descriptors
     CONNECTION_LIST = []
-    CHAT_MEMBER_LIST = ["A", "B"]
+    # dict to keep track chatting member
+    CHAT_MEMBER_LIST = {"A": [], "B": []}
+    # set to keep track invitation
+    WAIT_INVITE_SET = set()
+    # dict to keep track login state
     LOGIN_MAP = {}
     RECV_BUFFER = 4096  # Advisable to keep it as an exponent of 2
-    PORT = 5000
+    PORT = 20343
     USER_DB = [
         {"ID": "A", "PASSWORD": "123"}, {"ID": "B", "PASSWORD": "123"},
         {"ID": "C", "PASSWORD": "123"}, {"ID": "D", "PASSWORD": "123"}
@@ -73,21 +83,18 @@ if __name__ == "__main__":
                 CONNECTION_LIST.append(sockfd)
                 print("Client (%s, %s) connected" % addr)
 
-                broadcast_data(sockfd, "[%s] entered room\n" % str(LOGIN_MAP.get(sockfd, addr)))
-
             # Some incoming message from a client
             else:
                 # Data recieved from client, process it
                 try:
                     # In Windows, sometimes when a TCP program closes abruptly,
                     # a "Connection reset by peer" exception will be thrown
-                    data = json.loads(sock.recv(RECV_BUFFER))
-                    print(LOGIN_MAP)
-                    print("1")
+                    data = json.loads(sock.recv(RECV_BUFFER).decode('utf-8'))
+                    # print(LOGIN_MAP)
+                    # print(CHAT_MEMBER_LIST)
+                    # print(WAIT_INVITE_SET)
                     if data:
-                        print("2")
                         if data['type'] == "login":
-                            print("3")
                             # login process
                             if login(
                                 data['content']['id'],
@@ -95,23 +102,44 @@ if __name__ == "__main__":
                             ):
                                 LOGIN_MAP[sock] = data['content']['id']
                                 sock.send(message_form("login", "True"))
+                                # 상황 1. 채팅방에 있고, 누적 메세지가 있는 경우
+                                if (LOGIN_MAP[sock] in CHAT_MEMBER_LIST.keys()and len(CHAT_MEMBER_LIST[LOGIN_MAP[sock]])):
+                                    for msg in list(CHAT_MEMBER_LIST[LOGIN_MAP[sock]]):
+                                        print(json.loads(msg))
+                                        sock.send(msg)
+                                        CHAT_MEMBER_LIST[LOGIN_MAP[sock]].remove(msg)
+
+                                # 상황 2. 채팅 방에 없고, 초대 메세지가 있는 경우
+                                elif (LOGIN_MAP[sock] not in CHAT_MEMBER_LIST.keys() and LOGIN_MAP[sock] in WAIT_INVITE_SET):
+                                    WAIT_INVITE_SET.discard(LOGIN_MAP[sock])
+                                    sock.send(message_form("invitation", {"state":"request","message":"You are invited for chat room, Y or N?"}))
                             else:
                                 sock.send(message_form("login", "False"))
                         elif data['type'] == "invitation":
                             if(data['content']['state'] == "request"):
                                 # request 상황 시
-                                print(4)
-                                for _socket, _id in list(LOGIN_MAP.items()):
-                                    if _id == data['content']['target']:
-                                        _socket.send(message_form("invitation", {"state":"request","message":"You are invited for chat room, Y or N?"}))
-                                        break
+                                # 상황 1. 받을 유저가 online
+                                target_id = data['content']['target']
+                                if(target_id in LOGIN_MAP.values()):
+                                    for _socket, _id in list(LOGIN_MAP.items()):
+                                        if _id == data['content']['target']:
+                                            _socket.send(message_form("invitation", {"state":"request","message":"You are invited for chat room, Y or N?"}))
+                                            break
+                                # 상황 2. 받을 유저가 offline
+                                else:
+                                    WAIT_INVITE_SET.add(target_id)
                             else:
                                 # response 상황 시
-                                print(5)
                                 if data['content']['answer'] in ['Y', 'y']:
-                                    CHAT_MEMBER_LIST.append(LOGIN_MAP[sock])
+                                    CHAT_MEMBER_LIST[LOGIN_MAP[sock]] = []
+                                    broadcast_data(sock, "\r" + LOGIN_MAP[sock] + " has invited in this room!")
                                 else:
-                                    print("no this is error")
+                                    print("no.. this is error")
+                        elif data['type'] == "leaveRoom":
+                            broadcast_data(sock, "\r" + LOGIN_MAP[sock] + " has leaved  this room! Bye")
+                            del CHAT_MEMBER_LIST[LOGIN_MAP[sock]]
+                        elif data['type'] == "logout":
+                            del LOGIN_MAP[sock]
                         else:
                             # normal process
                             broadcast_data(sock, "\r" + '<' + str(
@@ -119,7 +147,7 @@ if __name__ == "__main__":
 
                 except Exception as e:
                     print(e)
-                    broadcast_data(sock, "Client (%s, %s) is offline\n" % addr)
+                    # broadcast_data(sock, "Client (%s, %s) is offline\n" % addr)
                     print ("Client (%s, %s) is offline" % addr)
                     sock.close()
                     CONNECTION_LIST.remove(sock)

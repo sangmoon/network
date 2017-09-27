@@ -27,7 +27,7 @@ def login():
 if __name__ == "__main__":
 
     if(len(sys.argv) < 3):
-        print ('Usage : python telnet.py hostname port')
+        print ('Usage : python chat_client.py hostname port')
         sys.exit()
 
     host = sys.argv[1]
@@ -87,12 +87,25 @@ if __name__ == "__main__":
             else:
                 msg = sys.stdin.readline()
                 m = re.search(r'^!invite[\s]*([a-zA-Z])', msg,)
+                mm = re.search(r'^!logout', msg,)
+                mmm = re.search(r'^!leaveRoom', msg,)
+
                 if (m):
                     # 초대 보내기
                     target = m.group(1)
                     s.send(message_form(
                         "invitation", {"state": "request", "target": target}))
                     prompt()
+                    # 로그아웃하기
+                elif(mm):
+                    s.send(message_form(
+                        "logout", "aa"))
+                    s.send(message_form("login", login()))
+                    # 방 나가기
+                elif(mmm):
+                    s.send(message_form(
+                        "leaveRoom", "aa"))
+                    print("leave the Room!")
                 else:
                     # 그냥 메세지 보내기
                     s.send(message_form("message", msg))
